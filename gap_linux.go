@@ -183,6 +183,10 @@ func (a *Adapter) Scan(callback func(*Adapter, ScanResult)) error {
 						props.Name = val.Value().(string)
 					case "UUIDs":
 						props.UUIDs = val.Value().([]string)
+					case "ServiceData":
+						if converted, ok := val.Value().(map[string]interface{}); ok {
+							props.ServiceData = converted
+						}
 					}
 				}
 				callback(a, makeScanResult(props))
@@ -223,6 +227,19 @@ func makeScanResult(props *device.Device1Properties) ScanResult {
 	a := Address{MACAddress{MAC: addr}}
 	a.SetRandom(props.AddressType == "random")
 
+	var serviceDatas []AdvServiceData
+	for k, val := range props.ServiceData {
+		parsedUUID, err := ParseUUID(k)
+		if err != nil || val == nil {
+			continue
+		}
+		variant := val.(dbus.Variant)
+		serviceDatas = append(serviceDatas, AdvServiceData{
+			UUID: parsedUUID,
+			Data: variant.Value().([]byte),
+		})
+	}
+
 	return ScanResult{
 		RSSI:    props.RSSI,
 		Address: a,
@@ -230,6 +247,7 @@ func makeScanResult(props *device.Device1Properties) ScanResult {
 			AdvertisementFields{
 				LocalName:    props.Name,
 				ServiceUUIDs: serviceUUIDs,
+				ServiceDatas: serviceDatas,
 			},
 		},
 	}
